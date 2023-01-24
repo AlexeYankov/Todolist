@@ -35,6 +35,7 @@ import {
   setTaskTitle,
   setTodolists,
   setTodolistsName,
+  TasksByOne,
 } from "./DAL/DaL";
 
 export type FilterValuesType = string | null;
@@ -56,12 +57,14 @@ function App() {
         const taskIds = data.todolists;
         console.log(data);
         taskIds.forEach(({ id }) =>
-          getTasks(id).then(({ data: { items } }) => {
-            console.log(items);
-            items.map((item: any) => {
-              const getStatusFromLS = JSON.parse(`${localStorage.getItem(`TaskStatus${item.id}`)}`);
+          getTasks(id).then(({data}) => {
+            const tasks = data.items
+            // const tasks = res.data.items
+            tasks.map((el) => {
+              console.log(el);
+              const getStatusFromLS = JSON.parse(`${localStorage.getItem(`TaskStatus${el.id}`)}`);
               dispatch(
-                addTaskAC(item.id, item.title, item.todoListId, getStatusFromLS)
+                addTaskAC(el.id, el.title, el.todoListID, getStatusFromLS)
               );
             });
           })

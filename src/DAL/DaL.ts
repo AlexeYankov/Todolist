@@ -9,7 +9,7 @@ export type TodolistTypeFromServer = {
   order: number;
 };
 
-export type TasksTypeFromServer = {
+export type TasksByOne = {
   id: string;
   title: string;
   addedDate: string;
@@ -19,6 +19,11 @@ export type TasksTypeFromServer = {
   startDate: string | null;
   deadline: string | null;
   description: string | null;
+  todoListID: string;
+};
+
+export type TasksTypeFromServer = {
+    items: Array<TasksByOne>
 };
 
 export type PostTodolistFromServer = {
@@ -26,8 +31,8 @@ export type PostTodolistFromServer = {
   fieldsErrors: Array<string>;
   resultCode: number;
   data: {
-      item: TodolistTypeFromServer;
-    };
+    item: TodolistTypeFromServer;
+  };
 };
 
 const instance = axios.create({
@@ -69,5 +74,5 @@ export const setTaskTitle = (id: string, title: string, tasksID: string) => {
 };
 
 export const getTasks = (id: string) => {
-  return instance.get("todo-lists/" + id + "/tasks");
+  return instance.get<TasksTypeFromServer>("todo-lists/" + id + "/tasks");
 };
