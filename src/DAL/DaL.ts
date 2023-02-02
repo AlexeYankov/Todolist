@@ -19,7 +19,7 @@ export type TasksByOne = {
   startDate: string | null;
   deadline: string | null;
   description: string | null;
-  todoListID: string;
+  todoListId: string;
 };
 
 export type TasksTypeFromServer = {

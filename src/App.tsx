@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect } from "react";
 import "./App.css";
 import { TaskType, Todolist } from "./Todolist";
 import { AddItemForm } from "./AddItemForm";
@@ -10,39 +10,29 @@ import Button from "@mui/material/Button";
 import Container from "@mui/material/Container";
 import Grid from "@mui/material/Grid";
 import Paper from "@mui/material/Paper";
+import LinearProgress from "@mui/material/LinearProgress";
 import { Menu } from "@mui/icons-material";
 import {
-  addTodolistAC,
+  addTaskThunk,
+  addTodolistThunk,
+  changeTaskTitleThunk,
   changeTodolistFilterAC,
-  changeTodolistTitleAC,
-  initialTodolistAC,
-  removeTodolistAC,
+  changeTodolistsTitleThunk,
+  deleteTodolistsThunk,
+  getTodolistsThunk,
+  removeTaskThunk,
 } from "./state/todolists-reducer";
-import {
-  addTaskAC,
-  changeTaskStatusAC,
-  changeTaskTitleAC,
-  removeTaskAC,
-} from "./state/tasks-reducer";
-import { useDispatch, useSelector } from "react-redux";
-import { AppRootStateType } from "./state/store";
-import {
-  deleteTask,
-  deleteTodolist,
-  getTasks,
-  getTodolists,
-  setTask,
-  setTaskTitle,
-  setTodolists,
-  setTodolistsName,
-  TasksByOne,
-} from "./DAL/DaL";
-
+import { changeTaskStatusAC } from "./state/tasks-reducer";
+import { useSelector } from "react-redux";
+import { AppRootStateType, useAppDispatch } from "./state/store";
+import { RequestStatusType } from "./state/app-reducer";
+import ErrorSnackbar from "./ErrorSnackBar";
 export type FilterValuesType = string | null;
 export type TodolistType = {
   id: string;
   title: string;
   filter: FilterValuesType;
+  status: string;
 };
 
 export type TasksStateType = {
@@ -50,53 +40,28 @@ export type TasksStateType = {
 };
 
 function App() {
+  const dispatch = useAppDispatch();
+
   useEffect(() => {
-    getTodolists()
-      .then((res) => dispatch(initialTodolistAC(res.data)))
-      .then((data) => {
-        const taskIds = data.todolists;
-        console.log(data);
-        taskIds.forEach(({ id }) =>
-          getTasks(id).then(({data}) => {
-            const tasks = data.items
-            // const tasks = res.data.items
-            tasks.map((el) => {
-              console.log(el);
-              const getStatusFromLS = JSON.parse(`${localStorage.getItem(`TaskStatus${el.id}`)}`);
-              dispatch(
-                addTaskAC(el.id, el.title, el.todoListID, getStatusFromLS)
-              );
-            });
-          })
-        );
-      });
+    dispatch(getTodolistsThunk);
   }, []);
+
   const todolists = useSelector<AppRootStateType, Array<TodolistType>>(
     (state) => state.todolists
   );
-  const tasks = useSelector<AppRootStateType, TasksStateType>(
-    (state) => state.tasks
+  const status = useSelector<AppRootStateType, RequestStatusType>(
+    (state) => state.app.status
   );
-  const dispatch = useDispatch();
+  const error = useSelector<AppRootStateType, null | string>(
+    (state) => state.app.error
+  );
 
   const removeTask = useCallback(function (todolistId: string, taskId: string) {
-    dispatch(removeTaskAC(todolistId, taskId));
-    deleteTask(todolistId, taskId).then(() =>
-      dispatch(removeTaskAC(todolistId, taskId))
-    );
+    dispatch(removeTaskThunk(todolistId, taskId));
   }, []);
 
   const addTask = useCallback(function (title: string, todolistId: string) {
-    setTask(todolistId, title).then(
-      ({
-        data: {
-          data: { item },
-        },
-      }) => {
-        console.log(todolistId);
-        dispatch(addTaskAC(item.id, item.title, todolistId));
-      }
-    );
+    dispatch(addTaskThunk(todolistId, title));
   }, []);
 
   const changeStatus = useCallback(function (
@@ -114,9 +79,7 @@ function App() {
     newTitle: string,
     todolistId: string
   ) {
-    setTaskTitle(todolistId, newTitle, id);
-    const action = changeTaskTitleAC(id, newTitle, todolistId);
-    dispatch(action);
+    dispatch(changeTaskTitleThunk(id, newTitle, todolistId));
   },
   []);
 
@@ -126,37 +89,25 @@ function App() {
   ) {
     const action = changeTodolistFilterAC(todolistId, value);
     dispatch(action);
-    localStorage.setItem(`TodolistFilter${todolistId}`, `${value}`)
+    localStorage.setItem(`TodolistFilter${todolistId}`, `${value}`);
   },
   []);
 
   const removeTodolist = useCallback(function (id: string) {
-    deleteTodolist(id).then(() => dispatch(removeTodolistAC(id)));
+    dispatch(deleteTodolistsThunk(id));
   }, []);
 
   const changeTodolistTitle = useCallback(function (id: string, title: string) {
     console.log(title);
-    setTodolistsName(id, title).then(() => {
-      const action = changeTodolistTitleAC(id, title);
-      dispatch(action);
-    });
+    dispatch(changeTodolistsTitleThunk(id, title));
   }, []);
 
   const addTodolist = useCallback(function (title: string) {
-    setTodolists(title).then(
-      ({
-        data: {
-          data: {
-            item: { id, title },
-          },
-        },
-      }) => {
-        dispatch(addTodolistAC(id, title));
-      }
-    );
+    dispatch(addTodolistThunk(title));
   }, []);
   return (
     <div className="App">
+      <ErrorSnackbar error={error} />
       <AppBar position="static">
         <Toolbar>
           <IconButton edge="start" color="inherit" aria-label="menu">
@@ -165,6 +116,7 @@ function App() {
           <Typography variant="h6">News</Typography>
           <Button color="inherit">Login</Button>
         </Toolbar>
+        {status == "loading" && <LinearProgress color="secondary" />}
       </AppBar>
       <Container fixed>
         <Grid container style={{ padding: "20px" }}>
@@ -172,24 +124,24 @@ function App() {
         </Grid>
         <Grid container spacing={3}>
           {todolists?.map((tl) => {
-            let allTodolistTasks = tasks[tl.id];
-            let a =
+            let filter =
               localStorage.getItem(`TodolistFilter${tl.id}`) === null
                 ? "all"
                 : localStorage.getItem(`TodolistFilter${tl.id}`);
-            console.log(a, a, allTodolistTasks);
+
+            console.log(filter);
             return (
               <Grid item key={tl.id}>
                 <Paper style={{ padding: "10px" }}>
                   <Todolist
+                    status={tl.status}
                     id={tl.id}
                     title={tl.title}
-                    tasks={allTodolistTasks}
                     removeTask={removeTask}
                     changeFilter={changeFilter}
                     addTask={addTask}
                     changeTaskStatus={changeStatus}
-                    filter={a}
+                    filter={filter}
                     removeTodolist={removeTodolist}
                     changeTaskTitle={changeTaskTitle}
                     changeTodolistTitle={changeTodolistTitle}
